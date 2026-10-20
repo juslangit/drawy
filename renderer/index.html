@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self';">
+  <title>Drawy</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="logo" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="16" height="16"><path d="M4 20c3-1 4-3 6-6l7.5-7.5a2.1 2.1 0 0 0-3-3L7 11c-3 2-5 3-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" transform="translate(2 0)"/></svg>
+    </span>Drawy</div>
+    <div class="picker no-drag">
+      <select id="project-select" title="Your projects" aria-label="Your projects"></select>
+      <button id="project-new" class="btn small">+ New project</button>
+      <button id="project-folder" class="btn small ghost" title="Show the project folder in Finder">Folder</button>
+    </div>
+    <div class="spacer"></div>
+    <div class="no-drag top-actions">
+      <button id="undo" class="btn small ghost" title="Undo (⌘Z)" disabled>Undo</button>
+      <button id="redo" class="btn small ghost" title="Redo (⇧⌘Z)" disabled>Redo</button>
+      <label class="theme-pick" title="The look of the generated UI. Switching is instant.">
+        <span class="muted small-text">Theme</span>
+        <select id="theme-select" aria-label="Theme"></select>
+      </label>
+      <button id="export" class="btn small primary" title="Write this screen as PNGs and layout.json">
+        <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M12 4v12M7 11l5 5 5-5M5 20h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Export
+      </button>
+    </div>
+  </header>
+
+  <!-- First run: no projects yet -->
+  <section id="welcome" class="welcome" hidden>
+    <div class="welcome-card">
+      <div class="welcome-art" aria-hidden="true"><span>✏️</span><span>✨</span><span>🎮</span></div>
+      <h1>Draw it, then make it real</h1>
+      <p class="muted">Sketch a game screen with one pen, say what each part is, and press Generate. Your scribbles turn into a themed game UI you can try, tweak and export.</p>
+      <button class="btn primary big" id="welcome-new">Start my first UI</button>
+    </div>
+  </section>
+
+  <div class="workspace" id="workspace" hidden>
+    <aside class="left" id="left">
+      <nav class="tabs" role="tablist">
+        <button class="tab active" data-tab="describe" role="tab">Describe</button>
+        <button class="tab" data-tab="chat" role="tab">Chat</button>
+        <button class="tab" data-tab="inspect" role="tab">Inspect</button>
+      </nav>
+
+      <!-- Describe: what the screen is and what each mark is -->
+      <div class="pane" id="pane-describe">
+        <div class="pane-scroll">
+          <label class="field"><span>This screen</span>
+            <input id="screen-note" placeholder="e.g. main menu, in-game HUD, shop pop-up" autocomplete="off">
+          </label>
+          <label class="field"><span>The game <small class="muted">(all screens)</small></span>
+            <input id="project-note" placeholder="e.g. a cosy farming game for phones" autocomplete="off">
+          </label>
+          <div class="marks-head"><b>What you drew</b><span id="marks-count" class="muted small-text"></span></div>
+          <ul id="marks" class="marks"></ul>
+          <div id="marks-empty" class="marks-empty muted">
+            <div class="empty-pen" aria-hidden="true"></div>
+            <p><b>Nothing drawn yet.</b><br>Draw on the canvas. Each thing you draw gets a number here, and you write what it is: “play button”, “health bar 70%”, “coins counter”.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chat: change the generated UI by asking -->
+      <div class="pane" id="pane-chat" hidden>
+        <div class="chat-head">
+          <span id="chat-status" class="muted small-text" aria-live="polite"></span>
+        </div>
+        <div id="messages" class="messages"></div>
+        <form id="composer" class="composer">
+          <textarea id="prompt" rows="3" placeholder="e.g. make the play button bigger, add a settings icon top right" aria-label="Message to Claude"></textarea>
+          <div class="composer-row">
+            <span class="muted small-text hint">Enter to send · Shift+Enter for a new line</span>
+            <div class="spacer"></div>
+            <button type="button" id="stop" class="btn small danger" hidden>Stop</button>
+            <button type="submit" id="send" class="btn small primary">Send</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Inspect: tweak by hand -->
+      <div class="pane" id="pane-inspect" hidden>
+        <div class="pane-scroll" id="inspect"></div>
+      </div>
+    </aside>
+
+    <div class="splitter" id="splitter" role="separator" aria-orientation="vertical"></div>
+
+    <main class="stage" id="stage">
+      <div class="stage-bar">
+        <div class="seg" role="tablist" aria-label="Mode">
+          <button class="seg-btn" data-mode="draw" role="tab" title="Draw with the pen (D)">Draw</button>
+          <button class="seg-btn" data-mode="edit" role="tab" title="Move, resize and change the UI by hand (E)">Edit</button>
+          <button class="seg-btn" data-mode="try" role="tab" title="Press the buttons and drag the sliders as a player would (T)">Try</button>
+        </div>
+        <div class="tools draw-only" role="toolbar" aria-label="Drawing tools">
+          <button class="tool active" data-tool="pen" data-size="4" title="Fine pen (1)" aria-label="Fine pen"><i style="--d:4px"></i></button>
+          <button class="tool" data-tool="pen" data-size="8" title="Pen (2)" aria-label="Pen"><i style="--d:8px"></i></button>
+          <button class="tool" data-tool="pen" data-size="16" title="Thick pen (3)" aria-label="Thick pen"><i style="--d:13px"></i></button>
+          <span class="tool-sep"></span>
+          <button class="tool" data-tool="eraser" title="Eraser: rubs out whole strokes (X)" aria-label="Eraser">
+            <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path d="M7 21h10M5.5 15.5l9-9a2 2 0 0 1 2.8 0l2.2 2.2a2 2 0 0 1 0 2.8L12 19H8.5l-3-3a.7.7 0 0 1 0-.5z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></svg>
+          </button>
+          <button class="tool" data-tool="group" title="Group: drag a box around strokes to make them one thing (G)" aria-label="Group">
+            <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><rect x="8.5" y="8.5" width="7" height="7" rx="1.5" fill="currentColor" opacity=".35"/></svg>
+          </button>
+          <span class="tool-sep"></span>
+          <button class="btn small ghost" id="clear" title="Rub out the whole drawing">Clear</button>
+        </div>
+        <div class="ui-only tools">
+          <label class="toggle" title="Show your drawing faintly over the UI (S)"><input type="checkbox" id="ghost"> <span>Show sketch</span></label>
+          <label class="toggle" title="What to show behind the UI while you work (not exported)">
+            <span>Behind</span>
+            <select id="backdrop" class="mini-select">
+              <option value="scene">Game scene</option>
+              <option value="checker">Transparent</option>
+              <option value="dark">Dark</option>
+              <option value="light">Light</option>
+            </select>
+          </label>
+        </div>
+        <div class="spacer"></div>
+        <span id="zoom-label" class="muted small-text"></span>
+        <button id="generate" class="btn small generate" title="Turn the drawing into UI (⌘↩)">
+          <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8zM19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z" fill="currentColor"/></svg>
+          Generate
+        </button>
+      </div>
+
+      <div class="stage-body">
+        <div class="screen-wrap" id="screen-wrap">
+          <canvas id="canvas" aria-label="Canvas"></canvas>
+          <div class="building" id="building" hidden>
+            <span class="pulse"></span><span id="building-text">Claude is reading your sketch</span>
+            <button class="btn small ghost" id="building-stop">Stop</button>
+          </div>
+          <div class="try-toast" id="try-toast" hidden></div>
+          <div class="stage-hint" id="stage-hint" hidden></div>
+        </div>
+      </div>
+
+      <div class="feed" aria-label="Screens">
+        <span class="feed-label">Screens</span>
+        <div class="feed-items" id="screens"></div>
+        <button class="btn small ghost" id="screen-add" title="Add another screen to this project">+ Screen</button>
+      </div>
+    </main>
+  </div>
+
+  <!-- New project -->
+  <dialog id="new-dialog" class="dialog wide">
+    <form method="dialog" id="new-form">
+      <h2>New UI project</h2>
+      <label class="field"><span>Name</span><input id="new-name" required maxlength="60" placeholder="e.g. Pirate Clicker UI" autocomplete="off"></label>
+      <label class="field"><span>The game <small class="muted">(optional, helps Claude pick words)</small></span><input id="new-note" maxlength="200" placeholder="e.g. a pirate treasure hunting game" autocomplete="off"></label>
+      <div class="field"><span>Canvas</span>
+        <div class="modes three">
+          <label class="mode-card"><input type="radio" name="size" value="1920x1080" checked><div><b>1080p</b><small>1920 × 1080, landscape</small></div></label>
+          <label class="mode-card"><input type="radio" name="size" value="1080x1920"><div><b>Phone</b><small>1080 × 1920, portrait</small></div></label>
+          <label class="mode-card"><input type="radio" name="size" value="1280x720"><div><b>720p</b><small>1280 × 720, landscape</small></div></label>
+        </div>
+      </div>
+      <div class="field"><span>Theme <small class="muted">(you can switch any time)</small></span><div id="theme-cards" class="theme-cards"></div></div>
+      <p id="new-error" class="error" hidden></p>
+      <div class="dialog-actions">
+        <button type="button" class="btn ghost" id="new-cancel">Cancel</button>
+        <button type="submit" class="btn primary" id="new-create">Create</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Export done -->
+  <dialog id="export-dialog" class="dialog">
+    <h2>Exported</h2>
+    <p id="export-summary" class="muted"></p>
+    <pre id="export-tree" class="pub-log"></pre>
+    <div class="dialog-actions">
+      <button class="btn ghost" id="export-close">Close</button>
+      <button class="btn primary" id="export-open">Show in Finder</button>
+    </div>
+  </dialog>
+
+  <script src="icons.js"></script>
+  <script src="themes.js"></script>
+  <script src="sketch.js"></script>
+  <script src="markdown.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

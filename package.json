@@ -1,0 +1,48 @@
+{
+  "name": "drawy",
+  "productName": "Drawy",
+  "version": "0.1.0",
+  "description": "Draw a game screen with one pen, describe the parts, and Claude turns it into game UI",
+  "main": "main.js",
+  "author": "Luqman Hakeem",
+  "license": "UNLICENSED",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "start": "electron .",
+    "vendor": "node tools/vendor.js",
+    "postinstall": "node tools/vendor.js",
+    "dist": "electron-builder --mac dir --publish never && ./tools/sign.sh"
+  },
+  "build": {
+    "appId": "com.luqmanhakeem.drawy",
+    "productName": "Drawy",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*",
+      "renderer/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "icon": "build/icon.png",
+      "target": [
+        "dir"
+      ],
+      "identity": null
+    }
+  },
+  "devDependencies": {
+    "electron": "^38.8.6",
+    "electron-builder": "^26.15.3",
+    "lucide-static": "^1.59.0"
+  },
+  "allowScripts": {
+    "electron@38.8.6": true
+  }
+}
